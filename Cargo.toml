@@ -1,0 +1,8 @@
+[package]
+name = "langlist"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+linguist = "0.1.11"
+linguist-types = "0.1.3"

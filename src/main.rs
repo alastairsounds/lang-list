@@ -1,0 +1,83 @@
+//! Repo-wide language breakdown by byte count, like GitHub's "Languages" bar.
+//!
+//! Usage: langlist [root-dir]
+//!
+//! ```text
+//! $ langlist ~Dev/Clones/linguist # https://github.com/drshade/linguist
+//! Rust                  97.0%  (60023 bytes)
+//! Shell                  3.0%  (1869 bytes)
+//! ```
+
+use linguist::{detect_language_by_extension, disambiguate, is_vendored};
+use linguist_types::LanguageType;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn main() {
+    let root = std::env::args().nth(1).unwrap_or_else(|| ".".to_string());
+
+    let output = Command::new("git")
+        .args(["ls-files", "-z"])
+        .current_dir(&root)
+        .output()
+        .expect("git ls-files failed - is this a git repo?");
+    let files: Vec<PathBuf> = output
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|s| Path::new(&root).join(String::from_utf8_lossy(s).as_ref()))
+        .collect();
+
+    let mut bytes_by_language: HashMap<&'static str, u64> = HashMap::new();
+
+    for path in &files {
+        let path_str = path.to_string_lossy();
+        if is_vendored(path_str.as_ref()).unwrap_or(false) {
+            continue;
+        }
+
+        let Ok(candidates) = detect_language_by_extension(path_str.as_ref()) else {
+            continue;
+        };
+
+        let resolved = if candidates.len() == 1 {
+            candidates.into_iter().next()
+        } else if candidates.is_empty() {
+            None
+        } else {
+            let Ok(content) = fs::read_to_string(path) else {
+                continue;
+            };
+            disambiguate(path_str.as_ref(), &content)
+                .ok()
+                .and_then(|v| v.into_iter().next())
+                .or_else(|| candidates.into_iter().next())
+        };
+
+        let Some(language) = resolved else { continue };
+        if language.definition.language_type != LanguageType::Programming {
+            continue;
+        }
+
+        let Ok(size) = fs::metadata(path).map(|m| m.len()) else {
+            continue;
+        };
+        *bytes_by_language.entry(language.name).or_insert(0) += size;
+    }
+
+    let total: u64 = bytes_by_language.values().sum();
+    if total == 0 {
+        println!("No programming-language files found under {root}");
+        return;
+    }
+
+    let mut ranked: Vec<_> = bytes_by_language.into_iter().collect();
+    ranked.sort_by_key(|&(_, size)| std::cmp::Reverse(size));
+
+    for (name, size) in ranked {
+        let pct = size as f64 / total as f64 * 100.0;
+        println!("{name:<20} {pct:5.1}%  ({size} bytes)");
+    }
+}
