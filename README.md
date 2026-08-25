@@ -5,10 +5,10 @@ Repo-wide language breakdown by byte count, like GitHub's "Languages" bar.
 ## Usage
 
 ```
-langlist [root-dir]
+langlist [--json] [root-dir]
 ```
 
-Defaults to the current directory. Requires the target to be a git repo (uses `git ls-files` to find tracked files).
+Defaults to the current directory. Requires the target to be a git repo (uses `git ls-files` to find tracked files). Pass `--json` for machine-readable output.
 
 ```text
 $ langlist ~/Dev/Clones/linguist

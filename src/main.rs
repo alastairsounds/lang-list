@@ -1,6 +1,6 @@
 //! Repo-wide language breakdown by byte count, like GitHub's "Languages" bar.
 //!
-//! Usage: langlist [root-dir]
+//! Usage: langlist [--json] [root-dir]
 //!
 //! ```text
 //! $ langlist ~Dev/Clones/linguist # https://github.com/drshade/linguist
@@ -15,8 +15,24 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[derive(serde::Serialize)]
+struct LanguageStat {
+    language: &'static str,
+    bytes: u64,
+    percent: f64,
+}
+
 fn main() {
-    let root = std::env::args().nth(1).unwrap_or_else(|| ".".to_string());
+    let mut root = ".".to_string();
+    let mut json = false;
+    for arg in std::env::args().skip(1) {
+        // No clap-rs/clap for this, until complexity demands it.
+        if arg == "--json" {
+            json = true;
+        } else {
+            root = arg;
+        }
+    }
 
     let output = Command::new("git")
         .args(["ls-files", "-z"])
@@ -69,15 +85,32 @@ fn main() {
 
     let total: u64 = bytes_by_language.values().sum();
     if total == 0 {
-        println!("No programming-language files found under {root}");
+        if json {
+            // Return valid JSON for empty results.
+            println!("[]");
+        } else {
+            println!("No programming-language files found under {root}");
+        }
         return;
     }
 
     let mut ranked: Vec<_> = bytes_by_language.into_iter().collect();
     ranked.sort_by_key(|&(_, size)| std::cmp::Reverse(size));
 
-    for (name, size) in ranked {
-        let pct = size as f64 / total as f64 * 100.0;
-        println!("{name:<20} {pct:5.1}%  ({size} bytes)");
+    if json {
+        let stats: Vec<LanguageStat> = ranked
+            .into_iter()
+            .map(|(language, bytes)| LanguageStat {
+                language,
+                bytes,
+                percent: (bytes as f64 / total as f64 * 1000.0).round() / 10.0,
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&stats).unwrap());
+    } else {
+        for (name, size) in ranked {
+            let pct = size as f64 / total as f64 * 100.0;
+            println!("{name:<20} {pct:5.1}%  ({size} bytes)");
+        }
     }
 }

@@ -71,6 +71,8 @@ version = "0.1.0"
 dependencies = [
  "linguist",
  "linguist-types",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
