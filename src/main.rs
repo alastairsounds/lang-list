@@ -10,6 +10,7 @@
 
 use linguist::{detect_language_by_extension, disambiguate, is_vendored};
 use linguist_types::LanguageType;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,41 +47,42 @@ fn main() {
         .map(|s| Path::new(&root).join(String::from_utf8_lossy(s).as_ref()))
         .collect();
 
-    let mut bytes_by_language: HashMap<&'static str, u64> = HashMap::new();
+    let sized: Vec<(&'static str, u64)> = files
+        .par_iter()
+        .filter_map(|path| {
+            let path_str = path.to_string_lossy();
+            if is_vendored(path_str.as_ref()).unwrap_or(false) {
+                return None;
+            }
 
-    for path in &files {
-        let path_str = path.to_string_lossy();
-        if is_vendored(path_str.as_ref()).unwrap_or(false) {
-            continue;
-        }
+            let candidates =
+                detect_language_by_extension(path_str.as_ref()).ok()?;
 
-        let Ok(candidates) = detect_language_by_extension(path_str.as_ref()) else {
-            continue;
-        };
-
-        let resolved = if candidates.len() == 1 {
-            candidates.into_iter().next()
-        } else if candidates.is_empty() {
-            None
-        } else {
-            let Ok(content) = fs::read_to_string(path) else {
-                continue;
+            let resolved = if candidates.len() == 1 {
+                candidates.into_iter().next()
+            } else if candidates.is_empty() {
+                None
+            } else {
+                let content = fs::read_to_string(path).ok()?;
+                disambiguate(path_str.as_ref(), &content)
+                    .ok()
+                    .and_then(|v| v.into_iter().next())
+                    .or_else(|| candidates.into_iter().next())
             };
-            disambiguate(path_str.as_ref(), &content)
-                .ok()
-                .and_then(|v| v.into_iter().next())
-                .or_else(|| candidates.into_iter().next())
-        };
 
-        let Some(language) = resolved else { continue };
-        if language.definition.language_type != LanguageType::Programming {
-            continue;
-        }
+            let language = resolved?;
+            if language.definition.language_type != LanguageType::Programming {
+                return None;
+            }
 
-        let Ok(size) = fs::metadata(path).map(|m| m.len()) else {
-            continue;
-        };
-        *bytes_by_language.entry(language.name).or_insert(0) += size;
+            let size = fs::metadata(path).map(|m| m.len()).ok()?;
+            Some((language.name, size))
+        })
+        .collect();
+
+    let mut bytes_by_language: HashMap<&'static str, u64> = HashMap::new();
+    for (name, size) in sized {
+        *bytes_by_language.entry(name).or_insert(0) += size;
     }
 
     let total: u64 = bytes_by_language.values().sum();
