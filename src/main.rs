@@ -21,6 +21,9 @@ struct LanguageStat {
     language: &'static str,
     bytes: u64,
     percent: f64,
+    color: Option<String>,
+    extensions: Option<Vec<String>>,
+    filenames: Option<Vec<String>>,
 }
 
 fn main() {
@@ -47,7 +50,7 @@ fn main() {
         .map(|s| Path::new(&root).join(String::from_utf8_lossy(s).as_ref()))
         .collect();
 
-    let sized: Vec<(&'static str, u64)> = files
+    let sized: Vec<(&'static str, u64, &'static linguist_types::Language)> = files
         .par_iter()
         .filter_map(|path| {
             let path_str = path.to_string_lossy();
@@ -76,16 +79,17 @@ fn main() {
             }
 
             let size = fs::metadata(path).map(|m| m.len()).ok()?;
-            Some((language.name, size))
+            Some((language.name, size, language.definition))
         })
         .collect();
 
-    let mut bytes_by_language: HashMap<&'static str, u64> = HashMap::new();
-    for (name, size) in sized {
-        *bytes_by_language.entry(name).or_insert(0) += size;
+    let mut bytes_by_language: HashMap<&'static str, (u64, &'static linguist_types::Language)> =
+        HashMap::new();
+    for (name, size, definition) in sized {
+        bytes_by_language.entry(name).or_insert((0, definition)).0 += size;
     }
 
-    let total: u64 = bytes_by_language.values().sum();
+    let total: u64 = bytes_by_language.values().map(|&(size, _)| size).sum();
     if total == 0 {
         if json {
             // Return valid JSON for empty results.
@@ -97,20 +101,23 @@ fn main() {
     }
 
     let mut ranked: Vec<_> = bytes_by_language.into_iter().collect();
-    ranked.sort_by_key(|&(_, size)| std::cmp::Reverse(size));
+    ranked.sort_by_key(|&(_, (size, _))| std::cmp::Reverse(size));
 
     if json {
         let stats: Vec<LanguageStat> = ranked
             .into_iter()
-            .map(|(language, bytes)| LanguageStat {
+            .map(|(language, (bytes, definition))| LanguageStat {
                 language,
                 bytes,
                 percent: (bytes as f64 / total as f64 * 1000.0).round() / 10.0,
+                color: definition.color.clone(),
+                extensions: definition.extensions.clone(),
+                filenames: definition.filenames.clone(),
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&stats).unwrap());
     } else {
-        for (name, size) in ranked {
+        for (name, (size, _)) in ranked {
             let pct = size as f64 / total as f64 * 100.0;
             println!("{name:<20} {pct:5.1}%  ({size} bytes)");
         }
