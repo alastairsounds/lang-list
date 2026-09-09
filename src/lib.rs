@@ -1,4 +1,4 @@
-//! Core language-breakdown logic used by the CLI.
+//! Core language-breakdown logic, shared by the native CLI and the wasm build.
 
 use serde::Serialize;
 
@@ -37,6 +37,7 @@ fn finalize(mut entries: Vec<LanguageEntry>) -> Vec<LanguageStat> {
 }
 
 /// Byte-per-language breakdown of a local git-tracked directory.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn scan_directory(root: &str) -> Vec<LanguageStat> {
     use linguist::{detect_language_by_extension, disambiguate, is_vendored};
     use linguist_types::LanguageType;
@@ -260,5 +261,22 @@ pub mod github {
             assert!(parse_repo_ref("").is_err());
             assert!(parse_repo_ref("owner/repo?x=1").is_err());
         }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use super::github;
+    use wasm_bindgen::prelude::wasm_bindgen;
+
+    /// Fetches a repo's languages as JSON (parse the result with `JSON.parse`).
+    #[wasm_bindgen]
+    pub async fn get_repo_languages(input: String) -> Result<String, String> {
+        let (owner, repo) =
+            github::parse_repo_ref(&input).map_err(|e| e.to_string())?;
+        let stats = github::fetch_repo_languages(&owner, &repo)
+            .await
+            .map_err(|e| e.to_string())?;
+        serde_json::to_string(&stats).map_err(|e| e.to_string())
     }
 }
