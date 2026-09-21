@@ -174,7 +174,7 @@ pub mod github {
             format!("https://api.github.com/repos/{owner}/{repo}/languages");
         let mut request = reqwest::Client::new()
             .get(&url)
-            .header("User-Agent", "langlist")
+            .header("User-Agent", "lang-list")
             .header("Accept", "application/vnd.github+json");
         if let Ok(token) = std::env::var("GITHUB_TOKEN") {
             let auth = format!("Bearer {token}");

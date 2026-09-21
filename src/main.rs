@@ -1,16 +1,16 @@
 //! Repo-wide language breakdown by byte count, like GitHub's "Languages" bar.
 //!
-//! Usage: langlist [--json] [--repo owner/repo|url] [root-dir]
+//! Usage: lang-list [--json] [--repo owner/repo|url] [root-dir]
 //!
 //! ```text
-//! $ langlist drshade/linguist      # fetches straight from GitHub, no clone needed
-//! $ langlist ~Dev/Clones/linguist  # scans a local clone of the same repo instead
+//! $ lang-list drshade/linguist      # fetches straight from GitHub, no clone needed
+//! $ lang-list ~Dev/Clones/linguist  # scans a local clone of the same repo instead
 //! Rust                  97.0%  (60023 bytes)
 //! Shell                  3.0%  (1869 bytes)
 //! ```
 
 use clap::Parser;
-use langlist::{github, LanguageStat};
+use lang_list::{github, LanguageStat};
 use std::path::Path;
 
 /// Byte-per-language breakdown of a local directory or a GitHub repo.
@@ -41,7 +41,7 @@ async fn main() {
 
     match resolve_target(cli.root, cli.repo) {
         Target::Local(dir) => {
-            let stats = langlist::scan_directory(&dir);
+            let stats = lang_list::scan_directory(&dir);
             let empty_message = format!("No language files found under {dir}");
             print_stats(&stats, json, &empty_message);
         }

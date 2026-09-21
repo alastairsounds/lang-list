@@ -1,7 +1,7 @@
-# langlist demo: language breakdown of a cloned repo, with the git remote
+# lang-list demo: language breakdown of a cloned repo, with the git remote
 # shown for context. Static output (nothing animates), so we skip the gif
 # and grab a screenshot directly.
-# Run: vhs langlist.tape (from this directory).
+# Run: vhs lang-list.tape (from this directory).
 
 Set Shell "zsh"
 Set FontFamily "FiraCode Nerd Font"
@@ -18,8 +18,8 @@ Sleep 500ms
 Type "git remote -v"
 Enter
 Sleep 500ms
-Type "langlist . && tput civis"
+Type "lang-list . && tput civis"
 Enter
 Sleep 1s
-Screenshot langlist.png
+Screenshot lang-list.png
 Sleep 500ms
